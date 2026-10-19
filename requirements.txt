@@ -1,0 +1,6 @@
+soccerdata
+penaltyblog
+pandas
+scikit-learn
+streamlit
+sqlalchemy
