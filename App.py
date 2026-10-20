@@ -6,7 +6,6 @@ import datetime
 st.set_page_config(page_title="European Soccer Predictor", layout="centered")
 st.title("⚽ Live Match Predictor")
 
-# Built-in sample upcoming fixtures for demonstration
 @st.cache_data
 def get_match_data():
     data = {
@@ -22,9 +21,8 @@ with st.spinner("Loading fixture schedule..."):
     upcoming = get_match_data()
 
 def calculate_probabilities(home_team, away_team):
-    home_poisson = pb.PoissonTeam(home_team, 1.8, 1.2)
-    away_poisson = pb.PoissonTeam(away_team, 1.1, 1.5)
-    dc = pb.DixonColesMatch(home_poisson, away_poisson)
+    # Pass goals directly into DixonColesMatch as a simple rate model simulation
+    dc = pb.DixonColesMatch([1.8, 1.1], [1.2, 1.5])
     dc.fit()
     pred = dc.predict()
     return pred.home_win, pred.draw, pred.away_win, pred.most_likely_score
