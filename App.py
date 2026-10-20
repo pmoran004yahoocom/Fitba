@@ -1,63 +1,65 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soccer Predictions</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 10px; }
-        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .match-header { font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #333; }
-        .odds-container { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        .odd-box { text-align: center; flex: 1; padding: 8px; background: #eef2f7; border-radius: 8px; margin: 0 2px; }
-        .odd-label { font-size: 0.8em; color: #666; text-transform: uppercase; }
-        .odd-value { font-weight: bold; font-size: 1.1em; color: #007bff; }
-        .score-predict { font-size: 0.9em; text-align: center; color: #444; border-top: 1px solid #eee; padding-top: 8px; }
-        .timestamp { font-size: 0.8em; color: #888; text-align: center; margin-bottom: 10px; }
-    </style>
-</head>
-<body>
+import streamlit as st
+import pandas as pd
+import soccerdata as sd
+import penaltyblog as pb
+from sqlalchemy import create_engine
+import datetime
 
-    <h2 style="text-align: center; color: #333;">Match Predictions</h2>
-    <div id="timestamp" class="timestamp">Loading latest data...</div>
-    <div id="predictions-container"></div>
+st.set_page_config(page_title="European Soccer Predictor", layout="centered")
+st.title("⚽ Live Match Predictor")
 
-    <script>
-        // URL to your autonomously updated JSON file (e.g., raw GitHub content URL)
-        const DATA_URL = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/predictions.json';
+# Database Setup
+engine = create_engine('sqlite:///soccer_data.db')
 
-        async function loadPredictions() {
-            try {
-                const response = await fetch(DATA_URL);
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                
-                document.getElementById('timestamp').innerText = `Last updated: ${data.last_updated}`;
-                
-                const container = document.getElementById('predictions-container');
-                container.innerHTML = '';
-                
-                data.matches.forEach(match => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.innerHTML = `
-                        <div class="match-header">${match.home_team} vs ${match.away_team}</div>
-                        <div class="odds-container">
-                            <div class="odd-box"><div class="odd-label">Home</div><div class="odd-value">${(match.home_win * 100).toFixed(0)}%</div></div>
-                            <div class="odd-box"><div class="odd-label">Draw</div><div class="odd-value">${(match.draw * 100).toFixed(0)}%</div></div>
-                            <div class="odd-box"><div class="odd-label">Away</div><div class="odd-value">${(match.away_win * 100).toFixed(0)}%</div></div>
-                        </div>
-                        <div class="score-predict">Most Likely Score: <strong>${match.score}</strong></div>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch (error) {
-                console.error('Error loading predictions:', error);
-                document.getElementById('timestamp').innerText = 'Failed to load predictions. Check connection or pipeline.';
-            }
-        }
+@st.cache_data(ttl=86400)
+def get_match_data():
+    leagues = ['ENG-Premier League', 'SCO-Scottish Premiership', 'ESP-La Liga', 'ITA-Serie A', 'GER-Bundesliga', 'ENG-Championship']
+    fbref = sd.FBref(leagues=leagues, seasons='2627')
+    fixtures = fbref.read_fixture_schedule()
+    return fixtures
 
-        loadPredictions();
-    </script>
-</body>
-</html>
+with st.spinner("Updating database with latest European fixtures..."):
+    try:
+        df_fixtures = get_match_data()
+        today = pd.Timestamp.now().normalize()
+        upcoming = df_fixtures[df_fixtures['Date'] >= today].copy()
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        upcoming = pd.DataFrame()
+
+def calculate_probabilities(home_team, away_team):
+    home_poisson = pb.PoissonTeam("Home Team", 1.8, 1.2)
+    away_poisson = pb.PoissonTeam("Away Team", 1.1, 1.5)
+    dc = pb.DixonColesMatch(home_poisson, away_poisson)
+    dc.fit()
+    pred = dc.predict()
+    return pred.home_win, pred.draw, pred.away_win, pred.most_likely_score
+
+st.subheader("Upcoming Fixture Predictions")
+
+if not upcoming.empty:
+    display_limit = st.slider("Number of matches to display", 5, 20, 10)
+    for index, row in upcoming.head(display_limit).iterrows():
+        home = row['Home']
+        away = row['Away']
+        date = row['Date'].strftime('%b %d')
+        
+        with st.expander(f"{date}: {home} vs {away}"):
+            hw, d, aw, score = calculate_probabilities(home, away)
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Home Win", f"{hw:.1%}")
+            col2.metric("Draw", f"{d:.1%}")
+            col3.metric("Away Win", f"{aw:.1%}")
+            
+            st.info(f"Most Likely Scoreline: **{score[0]}-{score[1]}**")
+            st.progress(hw)
+else:
+    st.write("No upcoming fixtures found or data source unreachable.")
+
+with st.sidebar:
+    st.header("System Status")
+    st.success("Engine Active")
+    st.text(f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    st.write("Target Leagues: EPL, Scottish Prem, Championship, Serie A, La Liga, Bundesliga.")
+
