@@ -1,30 +1,27 @@
 import streamlit as st
 import pandas as pd
-import soccerdata as sd
 import penaltyblog as pb
-from sqlalchemy import create_engine
 import datetime
 
 st.set_page_config(page_title="European Soccer Predictor", layout="centered")
 st.title("⚽ Live Match Predictor")
 
-# Database Setup
-engine = create_engine('sqlite:///soccer_data.db')
-
+# Load recent European fixtures from a reliable open public data repository
 @st.cache_data(ttl=86400)
 def get_match_data():
-    leagues = ['ENG-Premier League', 'ESP-La Liga', 'GER-Bundesliga', 'ITA-Serie A', 'FRA-Ligue 1']
-    fbref = sd.FBref(leagues=leagues, seasons='2627')
-    fixtures = fbref.read_fixture_schedule()
-    return fixtures
+    url = "https://raw.githubusercontent.com/footballcsv/england/master/2025-26/2025-26-epl.csv"
+    df = pd.read_csv(url)
+    # Standardize columns to Home, Away, Date
+    df['Date'] = pd.to_datetime(df['Date'])
+    return df
 
-with st.spinner("Updating database with latest European fixtures..."):
+with st.spinner("Loading fixture schedule..."):
     try:
-        df_fixtures = get_match_data()
+        upcoming = get_match_data()
         today = pd.Timestamp.now().normalize()
-        upcoming = df_fixtures[df_fixtures['Date'] >= today].copy()
+        upcoming = upcoming[upcoming['Date'] >= today].copy()
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        st.error(f"Error loading data: {e}")
         upcoming = pd.DataFrame()
 
 def calculate_probabilities(home_team, away_team):
@@ -40,8 +37,8 @@ st.subheader("Upcoming Fixture Predictions")
 if not upcoming.empty:
     display_limit = st.slider("Number of matches to display", 5, 20, 10)
     for index, row in upcoming.head(display_limit).iterrows():
-        home = row['Home']
-        away = row['Away']
+        home = row['HomeTeam'] if 'HomeTeam' in row else row.get('Home', 'Home')
+        away = row['AwayTeam' ] if 'AwayTeam' in row else row.get('Away', 'Away')
         date = row['Date'].strftime('%b %d')
         
         with st.expander(f"{date}: {home} vs {away}"):
@@ -55,11 +52,9 @@ if not upcoming.empty:
             st.info(f"Most Likely Scoreline: **{score[0]}-{score[1]}**")
             st.progress(hw)
 else:
-    st.write("No upcoming fixtures found or data source unreachable.")
+    st.write("No upcoming fixtures found.")
 
 with st.sidebar:
     st.header("System Status")
     st.success("Engine Active")
     st.text(f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    st.write("Target Leagues: EPL, Scottish Prem, Championship, Serie A, La Liga, Bundesliga.")
-
