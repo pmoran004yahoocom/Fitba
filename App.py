@@ -13,7 +13,7 @@ engine = create_engine('sqlite:///soccer_data.db')
 
 @st.cache_data(ttl=86400)
 def get_match_data():
-    leagues = ['ENG-Premier League', 'SCO-Scottish Premiership', 'ESP-La Liga', 'ITA-Serie A', 'GER-Bundesliga', 'ENG-Championship']
+    leagues = ['ENG-Premier League', 'SCO-Premiership', 'ESP-La Liga', 'ITA-Serie A', 'GER-Bundesliga', 'ENG-Championship']
     fbref = sd.FBref(leagues=leagues, seasons='2627')
     fixtures = fbref.read_fixture_schedule()
     return fixtures
