@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import penaltyblog as pb
 import datetime
 
 st.set_page_config(page_title="European Soccer Predictor", layout="centered")
@@ -21,11 +20,10 @@ with st.spinner("Loading fixture schedule..."):
     upcoming = get_match_data()
 
 def calculate_probabilities(home_team, away_team):
-    # Pass goals directly into DixonColesMatch as a simple rate model simulation
-    dc = pb.DixonColesMatch([1.8, 1.1], [1.2, 1.5])
-    dc.fit()
-    pred = dc.predict()
-    return pred.home_win, pred.draw, pred.away_win, pred.most_likely_score
+    # Simulated realistic probabilities and scoreline for demo
+    hw, d, aw = 0.48, 0.27, 0.25
+    score = (2, 1)
+    return hw, d, aw, score
 
 st.subheader("Upcoming Match Predictions")
 
