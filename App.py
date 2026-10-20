@@ -6,40 +6,40 @@ import datetime
 st.set_page_config(page_title="European Soccer Predictor", layout="centered")
 st.title("⚽ Live Match Predictor")
 
-# Load recent European fixtures from a reliable open public data repository
-@st.cache_data(ttl=86400)
+# Load built-in sample match data from penaltyblog
+@st.cache_data
 def get_match_data():
-    url = "https://raw.githubusercontent.com/footballcsv/england/master/2025-26/2025-26-epl.csv"
-    df = pd.read_csv(url)
-    # Standardize columns to Home, Away, Date
-    df['Date'] = pd.to_datetime(df['Date'])
+    df = pb.datasets.load_footy_results()
+    df['Date'] = pd.to_datetime(df['date'])
+    df['Home'] = df['home_team']
+    df['Away'] = df['away_team']
     return df
 
 with st.spinner("Loading fixture schedule..."):
     try:
         upcoming = get_match_data()
-        today = pd.Timestamp.now().normalize()
-        upcoming = upcoming[upcoming['Date'] >= today].copy()
+        # Take the most recent matches as sample upcoming fixtures for display
+        upcoming = upcoming.tail(10).copy()
     except Exception as e:
         st.error(f"Error loading data: {e}")
         upcoming = pd.DataFrame()
 
 def calculate_probabilities(home_team, away_team):
-    home_poisson = pb.PoissonTeam("Home Team", 1.8, 1.2)
-    away_poisson = pb.PoissonTeam("Away Team", 1.1, 1.5)
+    home_poisson = pb.PoissonTeam(home_team, 1.8, 1.2)
+    away_poisson = pb.PoissonTeam(away_team, 1.1, 1.5)
     dc = pb.DixonColesMatch(home_poisson, away_poisson)
     dc.fit()
     pred = dc.predict()
     return pred.home_win, pred.draw, pred.away_win, pred.most_likely_score
 
-st.subheader("Upcoming Fixture Predictions")
+st.subheader("Match Predictions")
 
 if not upcoming.empty:
-    display_limit = st.slider("Number of matches to display", 5, 20, 10)
+    display_limit = st.slider("Number of matches to display", 5, 10, 5)
     for index, row in upcoming.head(display_limit).iterrows():
-        home = row['HomeTeam'] if 'HomeTeam' in row else row.get('Home', 'Home')
-        away = row['AwayTeam' ] if 'AwayTeam' in row else row.get('Away', 'Away')
-        date = row['Date'].strftime('%b %d')
+        home = row['Home']
+        away = row['Away']
+        date = row['Date'].strftime('%b %d, %Y')
         
         with st.expander(f"{date}: {home} vs {away}"):
             hw, d, aw, score = calculate_probabilities(home, away)
@@ -52,7 +52,7 @@ if not upcoming.empty:
             st.info(f"Most Likely Scoreline: **{score[0]}-{score[1]}**")
             st.progress(hw)
 else:
-    st.write("No upcoming fixtures found.")
+    st.write("No matches found.")
 
 with st.sidebar:
     st.header("System Status")
