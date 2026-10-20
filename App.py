@@ -6,23 +6,20 @@ import datetime
 st.set_page_config(page_title="European Soccer Predictor", layout="centered")
 st.title("⚽ Live Match Predictor")
 
-# Load built-in sample match data from penaltyblog
+# Built-in sample upcoming fixtures for demonstration
 @st.cache_data
 def get_match_data():
-    df = pb.datasets.load_footy_results()
-    df['Date'] = pd.to_datetime(df['date'])
-    df['Home'] = df['home_team']
-    df['Away'] = df['away_team']
+    data = {
+        'Date': ['2026-10-24', '2026-10-25', '2026-10-25', '2026-10-26', '2026-10-26'],
+        'Home': ['Arsenal', 'Manchester United', 'Real Madrid', 'Inter Milan', 'Bayern Munich'],
+        'Away': ['Chelsea', 'Liverpool', 'Barcelona', 'AC Milan', 'Borussia Dortmund']
+    }
+    df = pd.DataFrame(data)
+    df['Date'] = pd.to_datetime(df['Date'])
     return df
 
 with st.spinner("Loading fixture schedule..."):
-    try:
-        upcoming = get_match_data()
-        # Take the most recent matches as sample upcoming fixtures for display
-        upcoming = upcoming.tail(10).copy()
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        upcoming = pd.DataFrame()
+    upcoming = get_match_data()
 
 def calculate_probabilities(home_team, away_team):
     home_poisson = pb.PoissonTeam(home_team, 1.8, 1.2)
@@ -32,11 +29,10 @@ def calculate_probabilities(home_team, away_team):
     pred = dc.predict()
     return pred.home_win, pred.draw, pred.away_win, pred.most_likely_score
 
-st.subheader("Match Predictions")
+st.subheader("Upcoming Match Predictions")
 
 if not upcoming.empty:
-    display_limit = st.slider("Number of matches to display", 5, 10, 5)
-    for index, row in upcoming.head(display_limit).iterrows():
+    for index, row in upcoming.iterrows():
         home = row['Home']
         away = row['Away']
         date = row['Date'].strftime('%b %d, %Y')
